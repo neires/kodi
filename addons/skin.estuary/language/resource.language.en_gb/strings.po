@@ -967,3 +967,7 @@ msgstr ""
 msgctxt "#31612"
 msgid "channels"
 msgstr ""
+
+msgctxt "#31616"
+msgid "Enable \"Picture-In-Picture\"-Mode"
+msgstr ""
