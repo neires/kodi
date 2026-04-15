@@ -1,0 +1,129 @@
+name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a)
+
+on:
+  workflow_dispatch:  # Nur manueller Start
+
+env:
+  TARGET_ARCH: arm-linux-androideabi
+  NDK_API_LEVEL: 24
+  ANDROID_PLATFORM: android-34
+  NDK_VERSION: "28.2.13676358"
+  PYTHON_VERSION: "3.14.3"
+
+  APP_NAME: "Kodi 22 Neires"
+  PACKAGE_NAME: "net.kodimod.neires.kodi22"
+  FINAL_APK_NAME: "kodi22-neires-edition-armeabi-v7a.apk"
+
+jobs:
+  build:
+    name: Build Custom APK
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: 🧰 Checkout eigener Fork mit Submodulen (Branch 22-android)
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        ref: 22-android
+        path: kodi
+
+    - name: ☕ Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: 🐍 Kompiliere & installiere Python ${{ env.PYTHON_VERSION }} (ersetzt System-Python)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libssl-dev zlib1g-dev \
+          libbz2-dev libreadline-dev libsqlite3-dev curl \
+          libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
+        
+        wget https://www.python.org/ftp/python/${{ env.PYTHON_VERSION }}/Python-${{ env.PYTHON_VERSION }}.tgz
+        tar -xf Python-${{ env.PYTHON_VERSION }}.tgz
+        cd Python-${{ env.PYTHON_VERSION }}
+        ./configure --enable-optimizations --prefix=/usr/local
+        make -j$(nproc)
+        sudo make altinstall
+        
+        sudo ln -sf /usr/local/bin/python3.14 /usr/local/bin/python3
+        sudo ln -sf /usr/local/bin/python3.14 /usr/local/bin/python
+        sudo ln -sf /usr/local/bin/pip3.14 /usr/local/bin/pip3
+        
+        echo "/usr/local/bin" >> $GITHUB_PATH
+        python3 --version
+        pip3 --version
+
+    - name: 🦀 Install Rust (optional)
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: 📦 Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential autoconf automake libtool curl gawk gperf unzip zlib1g-dev \
+          libncurses5-dev liblzo2-dev libjpeg-dev libpcre3-dev libgif-dev \
+          libfreetype6-dev libdbus-1-dev libdbus-glib-1-dev libasound2-dev \
+          libsqlite3-dev libxslt1-dev libxml2-dev libcap-dev libfontconfig1-dev \
+          libglu1-mesa-dev swig git-core ant ant-optional wget libcurl4-openssl-dev \
+          libssl-dev ninja-build cmake
+
+    - name: 📱 Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: ⚙️ Install Android NDK ${{ env.NDK_VERSION }}
+      run: |
+        sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
+        echo "ANDROID_NDK=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
+
+    - name: 💾 Cache Kodi Dependencies
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/xbmc-depends
+        key: ${{ runner.os }}-kodi-depends-${{ hashFiles('kodi/tools/depends/Makefile') }}
+
+    - name: 🧱 Build Kodi Dependencies (erst native sequentiell, dann target parallel)
+      run: |
+        cd kodi/tools/depends
+        ./bootstrap
+        ./configure --prefix=${{ github.workspace }}/xbmc-depends \
+                    --with-tarballs=${{ github.workspace }}/.tarballs \
+                    --host=${{ env.TARGET_ARCH }} \
+                    --with-sdk-path=$ANDROID_HOME \
+                    --with-ndk-path=$ANDROID_NDK
+        # Native Tools sequentiell bauen (verhindert Race Conditions)
+        make -j1 -C native
+        # Zielabhängigkeiten parallel bauen
+        make -j2
+
+    - name: ✏️ Paketnamen hartcodieren
+      run: |
+        cd kodi
+        sed -i 's/set(APP_PACKAGE "[^"]*"/set(APP_PACKAGE "${{ env.PACKAGE_NAME }}"/' CMakeLists.txt
+        sed -i 's/set(APP_NAME "[^"]*"/set(APP_NAME "${{ env.APP_NAME }}"/' CMakeLists.txt
+
+    - name: 📱 Build Kodi & Package APK
+      run: |
+        cd kodi
+        make -C tools/depends/target/cmakebuildsys
+        cd build
+        export GRADLE_OPTS="-Xmx2048m"
+        make -j$(nproc)
+        
+        mkdir -p ~/.android
+        keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
+        
+        make apk
+
+    - name: 📦 APK umbenennen
+      run: |
+        APK_FILE=$(find . -name "*.apk" -type f | head -1)
+        mv "$APK_FILE" "${{ env.FINAL_APK_NAME }}"
+
+    - name: 📤 Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.FINAL_APK_NAME }}
+        path: ${{ env.FINAL_APK_NAME }}
+        retention-days: 30
