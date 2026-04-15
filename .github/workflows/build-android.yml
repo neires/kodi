@@ -7,12 +7,9 @@ env:
   TARGET_ARCH: arm-linux-androideabi
   NDK_API_LEVEL: 24
   ANDROID_PLATFORM: android-34
-  # Offiziell empfohlene NDK-Version für Kodi 22 laut inputstream.adaptive Doku
   NDK_VERSION: "28.2.13676358"
-  # Benötigte Python-Version für Kodi 22 Piers Alpha 3
   PYTHON_VERSION: "3.14.3"
 
-  # Custom Branding
   APP_NAME: "Kodi 22 Neires"
   PACKAGE_NAME: "net.kodimod.neires.kodi22"
   FINAL_APK_NAME: "kodi22-neires-edition-armeabi-v7a.apk"
@@ -27,7 +24,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: recursive
-        ref: Kudi22_neires
+        ref: 22-android
         path: kodi
 
     - name: ☕ Set up JDK 17
@@ -38,13 +35,11 @@ jobs:
 
     - name: 🐍 Kompiliere & installiere Python ${{ env.PYTHON_VERSION }} (ersetzt System-Python)
       run: |
-        # Installiere Build-Abhängigkeiten für Python
         sudo apt-get update
         sudo apt-get install -y build-essential libssl-dev zlib1g-dev \
           libbz2-dev libreadline-dev libsqlite3-dev curl \
           libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
         
-        # Lade Python-Quellcode herunter und kompiliere ihn
         wget https://www.python.org/ftp/python/${{ env.PYTHON_VERSION }}/Python-${{ env.PYTHON_VERSION }}.tgz
         tar -xf Python-${{ env.PYTHON_VERSION }}.tgz
         cd Python-${{ env.PYTHON_VERSION }}
@@ -52,22 +47,18 @@ jobs:
         make -j$(nproc)
         sudo make altinstall
         
-        # Erstelle symbolische Links, um 'python3' und 'python' auf die neue Version zu setzen
         sudo ln -sf /usr/local/bin/python3.14 /usr/local/bin/python3
         sudo ln -sf /usr/local/bin/python3.14 /usr/local/bin/python
         sudo ln -sf /usr/local/bin/pip3.14 /usr/local/bin/pip3
         
-        # Stelle sicher, dass die neue Version im PATH ist
         echo "/usr/local/bin" >> $GITHUB_PATH
-        
-        # Überprüfe die Installation
         python3 --version
         pip3 --version
 
-    - name: 🦀 Install Rust (optional, für zukünftige Kompatibilität)
+    - name: 🦀 Install Rust (optional)
       uses: dtolnay/rust-toolchain@stable
 
-    - name: 📦 Install system dependencies (inkl. CMake & Ninja)
+    - name: 📦 Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -92,7 +83,7 @@ jobs:
         path: ${{ github.workspace }}/xbmc-depends
         key: ${{ runner.os }}-kodi-depends-${{ hashFiles('kodi/tools/depends/Makefile') }}
 
-    - name: 🧱 Build Kodi Dependencies
+    - name: 🧱 Build Kodi Dependencies (erst native sequentiell, dann target parallel)
       run: |
         cd kodi/tools/depends
         ./bootstrap
@@ -101,9 +92,12 @@ jobs:
                     --host=${{ env.TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK
+        # Native Tools sequentiell bauen (verhindert Race Conditions)
+        make -j1 -C native
+        # Zielabhängigkeiten parallel bauen
         make -j2
 
-    - name: ✏️ Paketnamen hartcodieren (Holzhammer-Methode)
+    - name: ✏️ Paketnamen hartcodieren
       run: |
         cd kodi
         sed -i 's/set(APP_PACKAGE "[^"]*"/set(APP_PACKAGE "${{ env.PACKAGE_NAME }}"/' CMakeLists.txt
@@ -114,7 +108,7 @@ jobs:
         cd kodi
         make -C tools/depends/target/cmakebuildsys
         cd build
-        export GRADLE_OPTS="-Xmx2048m"   # Schutz vor OOM
+        export GRADLE_OPTS="-Xmx2048m"
         make -j$(nproc)
         
         mkdir -p ~/.android
