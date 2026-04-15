@@ -75,7 +75,8 @@ jobs:
         # 1. Native Tools für den Host bauen (mit --build)
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
-                    --build=${{ env.HOST_ARCH }}
+                    --build=${{ env.HOST_ARCH }} \
+                    --with-rendersystem=gl
         make -j$(nproc) -C native
         
         # 2. Target (Android) Abhängigkeiten bauen (mit --host)
@@ -83,7 +84,8 @@ jobs:
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
-                    --with-ndk-path=$ANDROID_NDK
+                    --with-ndk-path=$ANDROID_NDK \
+                    --with-rendersystem=gl
         make -j$(nproc)
 
     - name: ✏️ Paketnamen hartcodieren
