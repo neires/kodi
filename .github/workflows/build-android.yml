@@ -39,7 +39,7 @@ jobs:
     - name: 🦀 Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: 📦 Install system dependencies (identisch zum erfolgreichen Workflow)
+    - name: 📦 Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -66,7 +66,7 @@ jobs:
         path: ${{ github.workspace }}/xbmc-depends
         key: ${{ runner.os }}-kodi-depends-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: 🧱 Build Kodi Dependencies
+    - name: 🧱 Build Native Dependencies (isoliert mit Host-Compiler)
       run: |
         cd tools/depends
         ./bootstrap
@@ -75,6 +75,23 @@ jobs:
                     --host=${{ env.TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK
+
+        # 🔧 RADIKAL: Alle Compiler-Variablen auf Host-Compiler setzen
+        export CC=gcc
+        export CXX=g++
+        export AR=ar
+        export LD=ld
+        export CFLAGS=""
+        export CXXFLAGS=""
+        export LDFLAGS=""
+
+        # Nur native Abhängigkeiten bauen (sequentiell, um Fehler klar zu sehen)
+        make -j1 -C native
+
+    - name: 🎯 Build Target Dependencies (Cross-Compile für Android)
+      run: |
+        cd tools/depends
+        # Jetzt mit Cross-Compiler-Variablen (werden vom configure-Skript gesetzt)
         make -j2
 
     - name: ✏️ Paketnamen hartcodieren (Holzhammer)
