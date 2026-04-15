@@ -8,7 +8,7 @@ env:
   NDK_API_LEVEL: 24
   ANDROID_PLATFORM: android-34
   NDK_VERSION: "28.2.13676358"
-  PYTHON_VERSION: "3.14.3"
+  PYTHON_VERSION: "3.11"
 
   APP_NAME: "Kodi 22 Neires"
   PACKAGE_NAME: "net.kodimod.neires.kodi22"
@@ -31,32 +31,15 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: 🐍 Install Python ${{ env.PYTHON_VERSION }} from source
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential libssl-dev zlib1g-dev \
-          libbz2-dev libreadline-dev libsqlite3-dev curl \
-          libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
-
-        wget https://www.python.org/ftp/python/${{ env.PYTHON_VERSION }}/Python-${{ env.PYTHON_VERSION }}.tgz
-        tar -xf Python-${{ env.PYTHON_VERSION }}.tgz
-        cd Python-${{ env.PYTHON_VERSION }}
-        ./configure --enable-optimizations --prefix=/usr/local
-        make -j$(nproc)
-        sudo make altinstall
-
-        sudo ln -sf /usr/local/bin/python3.14 /usr/local/bin/python3
-        sudo ln -sf /usr/local/bin/python3.14 /usr/local/bin/python
-        sudo ln -sf /usr/local/bin/pip3.14 /usr/local/bin/pip3
-
-        echo "/usr/local/bin" >> $GITHUB_PATH
-        python3 --version
-        pip3 --version
+    - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
 
     - name: 🦀 Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: 📦 Install system dependencies
+    - name: 📦 Install system dependencies (identisch zum erfolgreichen Workflow)
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -83,7 +66,7 @@ jobs:
         path: ${{ github.workspace }}/xbmc-depends
         key: ${{ runner.os }}-kodi-depends-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: 🧱 Build Kodi Dependencies (Host-Compiler für native Erzwingen)
+    - name: 🧱 Build Kodi Dependencies
       run: |
         cd tools/depends
         ./bootstrap
@@ -92,14 +75,6 @@ jobs:
                     --host=${{ env.TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK
-
-        # 🔧 KRITISCH: Native Pakete müssen mit dem Host-Compiler gebaut werden.
-        # Wir setzen CC/CXX/AR/LD temporär auf gcc/g++/ar/ld.
-        export CC=gcc
-        export CXX=g++
-        export AR=ar
-        export LD=ld
-
         make -j2
 
     - name: ✏️ Paketnamen hartcodieren (Holzhammer)
@@ -113,10 +88,10 @@ jobs:
         cd build
         export GRADLE_OPTS="-Xmx2048m"
         make -j$(nproc)
-
+        
         mkdir -p ~/.android
         keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
-
+        
         make apk
 
     - name: 📦 APK umbenennen
