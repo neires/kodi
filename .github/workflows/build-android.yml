@@ -5,6 +5,7 @@ on:
 
 env:
   TARGET_ARCH: arm-linux-androideabi
+  HOST_ARCH: x86_64-linux-gnu
   NDK_API_LEVEL: 24
   ANDROID_PLATFORM: android-34
   NDK_VERSION: "28.2.13676358"
@@ -66,35 +67,26 @@ jobs:
         path: ${{ github.workspace }}/xbmc-depends
         key: ${{ runner.os }}-kodi-depends-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: 🧱 Build Native Dependencies (isoliert mit Host-Compiler)
+    - name: 🧱 Build Kodi Dependencies (Native zuerst, dann Target)
       run: |
         cd tools/depends
         ./bootstrap
+        
+        # 1. Native Tools für den Host bauen (mit --build)
+        ./configure --prefix=${{ github.workspace }}/xbmc-depends \
+                    --with-tarballs=${{ github.workspace }}/.tarballs \
+                    --build=${{ env.HOST_ARCH }}
+        make -j$(nproc) -C native
+        
+        # 2. Target (Android) Abhängigkeiten bauen (mit --host)
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK
+        make -j$(nproc)
 
-        # 🔧 RADIKAL: Alle Compiler-Variablen auf Host-Compiler setzen
-        export CC=gcc
-        export CXX=g++
-        export AR=ar
-        export LD=ld
-        export CFLAGS=""
-        export CXXFLAGS=""
-        export LDFLAGS=""
-
-        # Nur native Abhängigkeiten bauen (sequentiell, um Fehler klar zu sehen)
-        make -j1 -C native
-
-    - name: 🎯 Build Target Dependencies (Cross-Compile für Android)
-      run: |
-        cd tools/depends
-        # Jetzt mit Cross-Compiler-Variablen (werden vom configure-Skript gesetzt)
-        make -j2
-
-    - name: ✏️ Paketnamen hartcodieren (Holzhammer)
+    - name: ✏️ Paketnamen hartcodieren
       run: |
         sed -i 's/set(APP_PACKAGE "[^"]*"/set(APP_PACKAGE "${{ env.PACKAGE_NAME }}"/' CMakeLists.txt
         sed -i 's/set(APP_NAME "[^"]*"/set(APP_NAME "${{ env.APP_NAME }}"/' CMakeLists.txt
