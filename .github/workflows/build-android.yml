@@ -1,7 +1,7 @@
-name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a) - DEBUG
+name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Nur manueller Start
 
 env:
   TARGET_ARCH: arm-linux-androideabi
@@ -19,44 +19,44 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout Fork mit Submodulen
+    - name: 🧰 Checkout Fork mit Submodulen
       uses: actions/checkout@v4
       with:
         submodules: recursive
         ref: 22-android
 
-    - name: Set up JDK 17
+    - name: ☕ Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Install Python ${{ env.PYTHON_VERSION }} from source
+    - name: 🐍 Install Python ${{ env.PYTHON_VERSION }} from source
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential libssl-dev zlib1g-dev \
           libbz2-dev libreadline-dev libsqlite3-dev curl \
           libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
-        
+
         wget https://www.python.org/ftp/python/${{ env.PYTHON_VERSION }}/Python-${{ env.PYTHON_VERSION }}.tgz
         tar -xf Python-${{ env.PYTHON_VERSION }}.tgz
         cd Python-${{ env.PYTHON_VERSION }}
         ./configure --enable-optimizations --prefix=/usr/local
         make -j$(nproc)
         sudo make altinstall
-        
+
         sudo ln -sf /usr/local/bin/python3.14 /usr/local/bin/python3
         sudo ln -sf /usr/local/bin/python3.14 /usr/local/bin/python
         sudo ln -sf /usr/local/bin/pip3.14 /usr/local/bin/pip3
-        
+
         echo "/usr/local/bin" >> $GITHUB_PATH
         python3 --version
         pip3 --version
 
-    - name: Install Rust
+    - name: 🦀 Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Install system dependencies
+    - name: 📦 Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -69,21 +69,21 @@ jobs:
           libssl-dev ninja-build
         pip3 install --user cmake
 
-    - name: Setup Android SDK
+    - name: 📱 Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Install Android NDK ${{ env.NDK_VERSION }}
+    - name: ⚙️ Install Android NDK ${{ env.NDK_VERSION }}
       run: |
         sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
         echo "ANDROID_NDK=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
 
-    - name: Cache Kodi Dependencies
+    - name: 💾 Cache Kodi Dependencies
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/xbmc-depends
         key: ${{ runner.os }}-kodi-depends-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: Build Kodi Dependencies (sequentiell für Debugging)
+    - name: 🧱 Build Kodi Dependencies (Host-Compiler für native Erzwingen)
       run: |
         cd tools/depends
         ./bootstrap
@@ -92,28 +92,41 @@ jobs:
                     --host=${{ env.TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK
-        # Sequentieller Build mit -j1, damit der wahre Fehler klar wird
-        make -j1
 
-    - name: Holzhammer - Paketnamen hartcodieren
+        # 🔧 KRITISCH: Native Pakete müssen mit dem Host-Compiler gebaut werden.
+        # Wir setzen CC/CXX/AR/LD temporär auf gcc/g++/ar/ld.
+        export CC=gcc
+        export CXX=g++
+        export AR=ar
+        export LD=ld
+
+        make -j2
+
+    - name: ✏️ Paketnamen hartcodieren (Holzhammer)
       run: |
         sed -i 's/set(APP_PACKAGE "[^"]*"/set(APP_PACKAGE "${{ env.PACKAGE_NAME }}"/' CMakeLists.txt
         sed -i 's/set(APP_NAME "[^"]*"/set(APP_NAME "${{ env.APP_NAME }}"/' CMakeLists.txt
 
-    - name: Build Kodi & Package APK
+    - name: 📱 Build Kodi & Package APK
       run: |
         make -C tools/depends/target/cmakebuildsys
         cd build
         export GRADLE_OPTS="-Xmx2048m"
         make -j$(nproc)
-        
+
         mkdir -p ~/.android
         keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
-        
+
         make apk
 
-    - name: Upload fertige APK
+    - name: 📦 APK umbenennen
+      run: |
+        APK_FILE=$(find . -name "*.apk" -type f | head -1)
+        mv "$APK_FILE" "${{ env.FINAL_APK_NAME }}"
+
+    - name: 📤 Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.FINAL_APK_NAME }}
-        path: "**/*.apk"
+        path: ${{ env.FINAL_APK_NAME }}
+        retention-days: 30
