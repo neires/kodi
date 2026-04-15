@@ -1,9 +1,7 @@
 name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a)
 
 on:
-  push:
-    branches: [ "Kudi22_neires" ]
-  workflow_dispatch:
+  workflow_dispatch:  # Nur manueller Start
 
 env:
   TARGET_ARCH: arm-linux-androideabi
