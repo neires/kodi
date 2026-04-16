@@ -103,19 +103,13 @@ jobs:
 
     - name: Build Kodi & Package APK
       run: |
-        # CMake-Konfiguration vorbereiten
         make -C tools/depends/target/cmakebuildsys
-        
-        # Jetzt das build-Verzeichnis anlegen und CMake ausführen
-        mkdir -p build
         cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/xbmc-depends/arm-linux-androideabi-24-debug/share/Toolchain.cmake \
-              -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/xbmc-depends/arm-linux-androideabi-24-debug \
-              ..
         export GRADLE_OPTS="-Xmx2048m"
-        make -j$(nproc)
         
-        # Signieren und APK bauen
+        # DIE BRECHSTANGE: Nur 1 Kern UND maximaler Output
+        make -j1 VERBOSE=1
+        
         mkdir -p ~/.android
         keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
         make apk
