@@ -84,32 +84,29 @@ jobs:
 
     - name: Build dependencies (Zwei-Phasen-Build)
       run: |
-        # ==========================================
-        # CACHE-CHECK: Wenn der Ordner da ist, nichts tun!
-        # ==========================================
-        if [ -d "${{ github.workspace }}/xbmc-depends/arm-linux-androideabi-24-debug/lib" ]; then
-          echo "✅ CACHE ERKANNT! Überspringe den Build der Abhängigkeiten komplett."
+        # RADIKALER CHECK: Wenn der Basis-Ordner existiert, ist der Cache da!
+        if [ -d "${{ github.workspace }}/xbmc-depends" ]; then
+          echo "✅ CACHE GEFUNDEN! Ich mache hier absolut gar nichts."
+          ls -R ${{ github.workspace }}/xbmc-depends | head -n 20 # Nur zur Sicherheit für das Log
           exit 0
         fi
 
         cd tools/depends
         ./bootstrap
         
-        # PHASE 1: Native Tools für Ubuntu
+        # PHASE 1
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --with-rendersystem=gl
-        
         make -C native -j$(nproc)
         
-        # PHASE 2: Target-Abhängigkeiten für Android
+        # PHASE 2
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.KODI_TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK \
                     --with-rendersystem=gles
-        
         make -j$(nproc)
 
     - name: Paketnamen hartcodieren
