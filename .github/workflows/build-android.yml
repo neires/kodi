@@ -1,4 +1,4 @@
-name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a)
+name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a) - DEBUG
 
 on:
   workflow_dispatch:
@@ -39,7 +39,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Install system dependencies (inkl. nativer Tools)
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -50,7 +50,7 @@ jobs:
           libglu1-mesa-dev python3-dev python3-setuptools python3-distutils \
           swig git-core ant ant-optional wget libcurl4-openssl-dev \
           libssl-dev ninja-build cmake bison flex gettext texinfo yasm \
-          nasm meson patchelf emacs-nox
+          nasm meson patchelf emacs-nox gcc g++ libc6-dev
 
     - name: Ensure emacs is on PATH
       run: |
@@ -68,25 +68,27 @@ jobs:
         sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
         echo "ANDROID_NDK=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
 
-    - name: Cache Kodi Dependencies (NEUER KEY)
+    - name: Cache Kodi Dependencies
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/xbmc-depends
-        key: ${{ runner.os }}-kodi-depends-v3-${{ hashFiles('tools/depends/Makefile') }}
+        key: ${{ runner.os }}-kodi-depends-debug-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: Build all dependencies (native + target) with relaxed warnings
+    - name: Build dependencies (SEQUENTIELL mit gcc)
       run: |
         cd tools/depends
         ./bootstrap
-        export CFLAGS="-Wno-include-next-absolute-path -Wno-error"
-        export CXXFLAGS="-Wno-include-next-absolute-path -Wno-error"
+        export CC=gcc
+        export CXX=g++
+        export CFLAGS="-Wno-include-next-absolute-path"
+        export CXXFLAGS="-Wno-include-next-absolute-path"
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK \
                     --with-rendersystem=gles
-        make -j$(nproc)
+        make -j1   # <-- Sequentiell, um den ersten Fehler zu sehen
 
     - name: Paketnamen hartcodieren
       run: |
