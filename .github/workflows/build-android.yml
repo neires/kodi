@@ -40,7 +40,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Install system dependencies
+    - name: Install ALL system dependencies (inkl. nativer Build-Tools)
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -50,8 +50,8 @@ jobs:
           libsqlite3-dev libxslt1-dev libxml2-dev libcap-dev libfontconfig1-dev \
           libglu1-mesa-dev python3-dev python3-setuptools python3-distutils \
           swig git-core ant ant-optional wget libcurl4-openssl-dev \
-          libssl-dev ninja-build
-        pip3 install --user cmake
+          libssl-dev ninja-build cmake bison flex gettext texinfo yasm \
+          nasm meson patchelf
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
@@ -67,27 +67,10 @@ jobs:
         path: ${{ github.workspace }}/xbmc-depends
         key: ${{ runner.os }}-kodi-depends-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: Build Native Tools (Host) - ISOLIERT
-      env:
-        TARGET_ARCH: ""
-        CFLAGS: ""
-        CXXFLAGS: ""
-        LDFLAGS: ""
-        CC: gcc
-        CXX: g++
+    - name: Build Target Dependencies (Android) direkt
       run: |
         cd tools/depends
         ./bootstrap
-        ./configure --prefix=${{ github.workspace }}/xbmc-depends \
-                    --with-tarballs=${{ github.workspace }}/.tarballs \
-                    --build=${{ env.HOST_ARCH }} \
-                    --with-rendersystem=gl
-        make -j1 -C native
-        # Kein 'make install' nötig; die Installation erfolgt implizit durch die Unterpakete.
-
-    - name: Build Target Dependencies (Android)
-      run: |
-        cd tools/depends
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.TARGET_ARCH }} \
