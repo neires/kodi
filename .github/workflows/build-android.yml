@@ -1,4 +1,4 @@
-name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a)
+name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a) - Debug
 
 on:
   workflow_dispatch:
@@ -72,20 +72,19 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/xbmc-depends
-        key: ${{ runner.os }}-kodi-depends-v4-${{ hashFiles('tools/depends/Makefile') }}
+        key: ${{ runner.os }}-kodi-depends-v5-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: Build all dependencies (Kodi regelt Compiler selbst)
+    - name: Build all dependencies (sequentiell zur Fehlersuche)
       run: |
         cd tools/depends
         ./bootstrap
-        # KEINE manuellen CC/CXX/CFLAGS Exporte!
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK \
                     --with-rendersystem=gles
-        make -j$(nproc)
+        make -j1   # Sequentiell, um den genauen Fehler zu sehen
 
     - name: Paketnamen hartcodieren
       run: |
