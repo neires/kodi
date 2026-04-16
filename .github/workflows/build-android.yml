@@ -74,17 +74,34 @@ jobs:
         path: ${{ github.workspace }}/xbmc-depends
         key: ${{ runner.os }}-kodi-depends-v5-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: Build all dependencies (sequentiell zur Fehlersuche)
+    - name: Build dependencies (Zwei-Phasen-Build)
       run: |
         cd tools/depends
         ./bootstrap
+        
+        # ==========================================
+        # PHASE 1: Native Tools für Ubuntu bauen
+        # Komplett ohne Android-Flags, damit nichts leckt!
+        # ==========================================
+        ./configure --prefix=${{ github.workspace }}/xbmc-depends \
+                    --with-tarballs=${{ github.workspace }}/.tarballs
+        
+        # Baue NUR den Ordner "native" mit voller CPU-Power
+        make -C native -j$(nproc)
+        
+        # ==========================================
+        # PHASE 2: Target-Abhängigkeiten für Android bauen
+        # ==========================================
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK \
                     --with-rendersystem=gles
-        make -j1   # Sequentiell, um den genauen Fehler zu sehen
+        
+        # Baue den Rest. Make erkennt, dass die nativen Tools 
+        # schon fertig sind und überspringt diese.
+        make -j$(nproc)
 
     - name: Paketnamen hartcodieren
       run: |
