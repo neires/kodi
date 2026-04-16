@@ -40,7 +40,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Install ALL system dependencies (inkl. nativer Build-Tools)
+    - name: Install ALL system dependencies (inkl. Emacs für gettext)
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -51,7 +51,7 @@ jobs:
           libglu1-mesa-dev python3-dev python3-setuptools python3-distutils \
           swig git-core ant ant-optional wget libcurl4-openssl-dev \
           libssl-dev ninja-build cmake bison flex gettext texinfo yasm \
-          nasm meson patchelf
+          nasm meson patchelf emacs-nox
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
@@ -61,11 +61,11 @@ jobs:
         sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
         echo "ANDROID_NDK=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
 
-    - name: Cache Kodi Dependencies
+    - name: Cache Kodi Dependencies (mit neuem Key wegen Emacs-Fix)
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/xbmc-depends
-        key: ${{ runner.os }}-kodi-depends-${{ hashFiles('tools/depends/Makefile') }}
+        key: ${{ runner.os }}-kodi-depends-${{ hashFiles('tools/depends/Makefile') }}-v2-emacs
 
     - name: Build Target Dependencies (Android) direkt
       run: |
