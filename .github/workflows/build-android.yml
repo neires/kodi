@@ -68,11 +68,11 @@ jobs:
         sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
         echo "ANDROID_NDK=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
 
-    - name: Cache Kodi Dependencies (NEUER KEY)
+    - name: Cache Kodi Dependencies
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/xbmc-depends
-        key: ${{ runner.os }}-kodi-depends-v5-${{ hashFiles('tools/depends/Makefile') }}
+        key: ${{ runner.os }}-kodi-depends-v6-${{ hashFiles('tools/depends/Makefile') }}
 
     - name: Build dependencies (Zwei-Phasen-Build)
       run: |
@@ -81,12 +81,11 @@ jobs:
         
         # ==========================================
         # PHASE 1: Native Tools für Ubuntu bauen
-        # Komplett ohne Android-Flags, damit nichts leckt!
         # ==========================================
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
-                    --with-tarballs=${{ github.workspace }}/.tarballs
+                    --with-tarballs=${{ github.workspace }}/.tarballs \
+                    --with-rendersystem=gl
         
-        # Baue NUR den Ordner "native" mit voller CPU-Power
         make -C native -j$(nproc)
         
         # ==========================================
@@ -99,8 +98,6 @@ jobs:
                     --with-ndk-path=$ANDROID_NDK \
                     --with-rendersystem=gles
         
-        # Baue den Rest. Make erkennt, dass die nativen Tools 
-        # schon fertig sind und überspringt diese.
         make -j$(nproc)
 
     - name: Paketnamen hartcodieren
