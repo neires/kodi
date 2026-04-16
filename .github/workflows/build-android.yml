@@ -1,10 +1,10 @@
-name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a) - Debug
+name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a)
 
 on:
   workflow_dispatch:
 
 env:
-  # UMBENANNT: Um Kollisionen mit Kodis Makefiles zu verhindern!
+  # Umbenannt, um Kollisionen mit Kodis Makefiles zu verhindern!
   KODI_TARGET_ARCH: arm-linux-androideabi
   NDK_API_LEVEL: 24
   ANDROID_PLATFORM: android-34
@@ -73,34 +73,27 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/xbmc-depends
-        key: ${{ runner.os }}-kodi-depends-v7-${{ hashFiles('tools/depends/Makefile') }}
-        save-always: true  # <--- DIESE ZEILE IST DER LEBENSRETTER
+        key: ${{ runner.os }}-kodi-depends-v8-${{ hashFiles('tools/depends/Makefile') }}
+        save-always: true
 
     - name: Build dependencies (Zwei-Phasen-Build)
       run: |
         cd tools/depends
         ./bootstrap
         
-        # ==========================================
-        # PHASE 1: Native Tools für Ubuntu
-        # ==========================================
+        # Phase 1: Native Tools für Ubuntu
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --with-rendersystem=gl
-        
         make -C native -j$(nproc)
         
-        # ==========================================
-        # PHASE 2: Target-Abhängigkeiten für Android
-        # ==========================================
-        # Hier nutzen wir jetzt die umbenannte Variable!
+        # Phase 2: Target-Abhängigkeiten für Android
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.KODI_TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK \
                     --with-rendersystem=gles
-        
         make -j$(nproc)
 
     - name: Paketnamen hartcodieren
@@ -110,13 +103,19 @@ jobs:
 
     - name: Build Kodi & Package APK
       run: |
+        # CMake-Konfiguration vorbereiten
         make -C tools/depends/target/cmakebuildsys
+        
+        # Jetzt das build-Verzeichnis anlegen und CMake ausführen
+        mkdir -p build
         cd build
+        cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/xbmc-depends/arm-linux-androideabi-24-debug/share/Toolchain.cmake \
+              -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/xbmc-depends/arm-linux-androideabi-24-debug \
+              ..
         export GRADLE_OPTS="-Xmx2048m"
+        make -j$(nproc)
         
-        # HIER ÄNDERN: Temporär auf sequenziell stellen, um den echten Fehler zu sehen!
-        make -j1 
-        
+        # Signieren und APK bauen
         mkdir -p ~/.android
         keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
         make apk
