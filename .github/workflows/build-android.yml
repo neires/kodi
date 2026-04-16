@@ -83,7 +83,7 @@ jobs:
                     --build=${{ env.HOST_ARCH }} \
                     --with-rendersystem=gl
         make -j1 -C native
-        make -j1 -C native install
+        # Kein 'make install' nötig; die Installation erfolgt implizit durch die Unterpakete.
 
     - name: Build Target Dependencies (Android)
       run: |
