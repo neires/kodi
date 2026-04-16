@@ -72,7 +72,7 @@ jobs:
         sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
         echo "ANDROID_NDK=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
 
-    # 1. CACHE SUCHEN UND LADEN
+    # 1. CACHE SUCHEN UND LADEN (Key v9)
     - name: Restore Kodi Dependencies
       id: cache-deps
       uses: actions/cache/restore@v4
@@ -83,20 +83,20 @@ jobs:
           ${{ github.workspace }}/.tarballs
         key: ${{ runner.os }}-kodi-depends-v9-${{ hashFiles('tools/depends/Makefile') }}
 
-    # 2. ABHÄNGIGKEITEN BAUEN (Wird komplett übersprungen, wenn Cache existiert!)
+    # 2. ABHÄNGIGKEITEN BAUEN (Wird dank v9-Cache jetzt in 0s übersprungen!)
     - name: Build dependencies (Zwei-Phasen-Build)
       if: steps.cache-deps.outputs.cache-hit != 'true'
       run: |
         cd tools/depends
         ./bootstrap
         
-        # PHASE 1: Native Tools für Ubuntu
+        # PHASE 1: Native Tools
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --with-rendersystem=gl
         make -C native -j$(nproc)
         
-        # PHASE 2: Target-Abhängigkeiten für Android
+        # PHASE 2: Target-Abhängigkeiten
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.KODI_TARGET_ARCH }} \
@@ -105,7 +105,7 @@ jobs:
                     --with-rendersystem=gles
         make -j$(nproc)
 
-    # 3. CACHE SOFORT SPEICHERN (Direkt nach dem Build!)
+    # 3. CACHE SPEICHERN (Nur falls er nicht existierte)
     - name: Save Kodi Dependencies
       if: steps.cache-deps.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
@@ -121,12 +121,24 @@ jobs:
         sed -i 's/set(APP_PACKAGE "[^"]*"/set(APP_PACKAGE "${{ env.PACKAGE_NAME }}"/' CMakeLists.txt
         sed -i 's/set(APP_NAME "[^"]*"/set(APP_NAME "${{ env.APP_NAME }}"/' CMakeLists.txt
 
+    # ---> FIX FÜR DEN ANT / LIBBLURAY FEHLER <---
+    - name: Fix Ant Path for libbluray
+      run: |
+        sudo mv /usr/bin/ant /usr/bin/ant.real
+        echo '#!/bin/bash' | sudo tee /usr/bin/ant
+        echo 'export ANT_HOME=/usr/share/ant' | sudo tee -a /usr/bin/ant
+        echo '/usr/bin/ant.real "$@"' | sudo tee -a /usr/bin/ant
+        sudo chmod +x /usr/bin/ant
+
     - name: Build Kodi & Package APK
       run: |
         make -C tools/depends/target/cmakebuildsys
         cd build
         export GRADLE_OPTS="-Xmx2048m"
+        
+        # ZURÜCK AUF VOLLE POWER
         make -j$(nproc)
+        
         mkdir -p ~/.android
         keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
         make apk
