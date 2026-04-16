@@ -1,10 +1,9 @@
-name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a)
+name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a) - Debug
 
 on:
   workflow_dispatch:
 
 env:
-  # Umbenannt, um Kollisionen mit Kodis Makefiles zu verhindern!
   KODI_TARGET_ARCH: arm-linux-androideabi
   NDK_API_LEVEL: 24
   ANDROID_PLATFORM: android-34
@@ -31,6 +30,10 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+
+    - name: Fix JDK Android Include Path
+      run: |
+        sudo ln -sf "$JAVA_HOME/include/linux" "$JAVA_HOME/include/android"
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -84,19 +87,25 @@ jobs:
         cd tools/depends
         ./bootstrap
         
-        # Phase 1: Native Tools für Ubuntu
+        # ==========================================
+        # PHASE 1: Native Tools für Ubuntu
+        # ==========================================
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --with-rendersystem=gl
+        
         make -C native -j$(nproc)
         
-        # Phase 2: Target-Abhängigkeiten für Android
+        # ==========================================
+        # PHASE 2: Target-Abhängigkeiten für Android
+        # ==========================================
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.KODI_TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK \
                     --with-rendersystem=gles
+        
         make -j$(nproc)
 
     - name: Paketnamen hartcodieren
@@ -109,10 +118,7 @@ jobs:
         make -C tools/depends/target/cmakebuildsys
         cd build
         export GRADLE_OPTS="-Xmx2048m"
-        
-        # DIE BRECHSTANGE: Nur 1 Kern UND maximaler Output
-        make -j1 VERBOSE=1
-        
+        make -j$(nproc)
         mkdir -p ~/.android
         keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
         make apk
