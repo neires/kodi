@@ -84,21 +84,25 @@ jobs:
 
     - name: Build dependencies (Zwei-Phasen-Build)
       run: |
+        # ==========================================
+        # CACHE-CHECK: Wenn der Ordner da ist, nichts tun!
+        # ==========================================
+        if [ -d "${{ github.workspace }}/xbmc-depends/arm-linux-androideabi-24-debug/lib" ]; then
+          echo "✅ CACHE ERKANNT! Überspringe den Build der Abhängigkeiten komplett."
+          exit 0
+        fi
+
         cd tools/depends
         ./bootstrap
         
-        # ==========================================
         # PHASE 1: Native Tools für Ubuntu
-        # ==========================================
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --with-rendersystem=gl
         
         make -C native -j$(nproc)
         
-        # ==========================================
         # PHASE 2: Target-Abhängigkeiten für Android
-        # ==========================================
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.KODI_TARGET_ARCH }} \
@@ -118,7 +122,10 @@ jobs:
         make -C tools/depends/target/cmakebuildsys
         cd build
         export GRADLE_OPTS="-Xmx2048m"
-        make -j$(nproc)
+        
+        # DIE BRECHSTANGE IST ZURÜCK: Zwingt Kodi, den genauen Fehler zu zeigen
+        make -j1 VERBOSE=1
+        
         mkdir -p ~/.android
         keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
         make apk
