@@ -5,7 +5,6 @@ on:
 
 env:
   TARGET_ARCH: arm-linux-androideabi
-  HOST_ARCH: x86_64-linux-gnu
   NDK_API_LEVEL: 24
   ANDROID_PLATFORM: android-34
   NDK_VERSION: "28.2.13676358"
@@ -40,7 +39,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Install ALL system dependencies (inkl. nativer Build-Tools)
+    - name: Install system dependencies (inkl. nativer Tools)
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -60,7 +59,6 @@ jobs:
             sudo ln -s "$(command -v emacs-nox)" /usr/local/bin/emacs
           fi
         fi
-        echo "emacs -> $(command -v emacs)"
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
@@ -70,16 +68,18 @@ jobs:
         sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
         echo "ANDROID_NDK=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
 
-    - name: Cache Kodi Dependencies
+    - name: Cache Kodi Dependencies (NEUER KEY)
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/xbmc-depends
-        key: ${{ runner.os }}-kodi-depends-v2-${{ hashFiles('tools/depends/Makefile') }}
+        key: ${{ runner.os }}-kodi-depends-v3-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: Build Target Dependencies (Android) direkt
+    - name: Build all dependencies (native + target) with relaxed warnings
       run: |
         cd tools/depends
         ./bootstrap
+        export CFLAGS="-Wno-include-next-absolute-path -Wno-error"
+        export CXXFLAGS="-Wno-include-next-absolute-path -Wno-error"
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.TARGET_ARCH }} \
