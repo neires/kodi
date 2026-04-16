@@ -112,7 +112,10 @@ jobs:
         make -C tools/depends/target/cmakebuildsys
         cd build
         export GRADLE_OPTS="-Xmx2048m"
-        make -j$(nproc)
+        
+        # HIER ÄNDERN: Temporär auf sequenziell stellen, um den echten Fehler zu sehen!
+        make -j1 
+        
         mkdir -p ~/.android
         keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
         make apk
