@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
 
 env:
-  TARGET_ARCH: arm-linux-androideabi
+  # UMBENANNT: Um Kollisionen mit Kodis Makefiles zu verhindern!
+  KODI_TARGET_ARCH: arm-linux-androideabi
   NDK_API_LEVEL: 24
   ANDROID_PLATFORM: android-34
   NDK_VERSION: "28.2.13676358"
@@ -39,7 +40,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Install system dependencies (inkl. Emacs)
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -72,7 +73,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/xbmc-depends
-        key: ${{ runner.os }}-kodi-depends-v6-${{ hashFiles('tools/depends/Makefile') }}
+        key: ${{ runner.os }}-kodi-depends-v7-${{ hashFiles('tools/depends/Makefile') }}
 
     - name: Build dependencies (Zwei-Phasen-Build)
       run: |
@@ -80,7 +81,7 @@ jobs:
         ./bootstrap
         
         # ==========================================
-        # PHASE 1: Native Tools für Ubuntu bauen
+        # PHASE 1: Native Tools für Ubuntu
         # ==========================================
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
@@ -89,11 +90,12 @@ jobs:
         make -C native -j$(nproc)
         
         # ==========================================
-        # PHASE 2: Target-Abhängigkeiten für Android bauen
+        # PHASE 2: Target-Abhängigkeiten für Android
         # ==========================================
+        # Hier nutzen wir jetzt die umbenannte Variable!
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
-                    --host=${{ env.TARGET_ARCH }} \
+                    --host=${{ env.KODI_TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK \
                     --with-rendersystem=gles
