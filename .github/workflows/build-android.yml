@@ -1,7 +1,7 @@
 name: 🔨 Build Kodi 22 Neires Edition (armeabi-v7a)
 
 on:
-  workflow_dispatch:  # Nur manueller Start
+  workflow_dispatch:
 
 env:
   TARGET_ARCH: arm-linux-androideabi
@@ -20,27 +20,27 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: 🧰 Checkout Fork mit Submodulen
+    - name: Checkout Fork mit Submodulen
       uses: actions/checkout@v4
       with:
         submodules: recursive
         ref: 22-android
 
-    - name: ☕ Set up JDK 17
+    - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: 🦀 Install Rust
+    - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: 📦 Install system dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -53,64 +53,64 @@ jobs:
           libssl-dev ninja-build
         pip3 install --user cmake
 
-    - name: 📱 Setup Android SDK
+    - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: ⚙️ Install Android NDK ${{ env.NDK_VERSION }}
+    - name: Install Android NDK
       run: |
         sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
         echo "ANDROID_NDK=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
 
-    - name: 💾 Cache Kodi Dependencies
+    - name: Cache Kodi Dependencies
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/xbmc-depends
         key: ${{ runner.os }}-kodi-depends-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: 🧱 Build Kodi Dependencies (Native zuerst, dann Target)
+    - name: Build Native Tools (Host)
       run: |
         cd tools/depends
         ./bootstrap
-        
-        # 1. Native Tools für den Host bauen (mit --build)
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --build=${{ env.HOST_ARCH }} \
                     --with-rendersystem=gl
-        make -j$(nproc) -C native
-        
-        # 2. Target (Android) Abhängigkeiten bauen (mit --host)
+        make -j1 -C native
+        make -j1 -C native install
+
+    - name: Build Target Dependencies (Android)
+      run: |
+        cd tools/depends
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.TARGET_ARCH }} \
                     --with-sdk-path=$ANDROID_HOME \
                     --with-ndk-path=$ANDROID_NDK \
-                    --with-rendersystem=gl
+                    --with-rendersystem=gles
         make -j$(nproc)
 
-    - name: ✏️ Paketnamen hartcodieren
+    - name: Paketnamen hartcodieren
       run: |
         sed -i 's/set(APP_PACKAGE "[^"]*"/set(APP_PACKAGE "${{ env.PACKAGE_NAME }}"/' CMakeLists.txt
         sed -i 's/set(APP_NAME "[^"]*"/set(APP_NAME "${{ env.APP_NAME }}"/' CMakeLists.txt
 
-    - name: 📱 Build Kodi & Package APK
+    - name: Build Kodi & Package APK
       run: |
         make -C tools/depends/target/cmakebuildsys
         cd build
         export GRADLE_OPTS="-Xmx2048m"
         make -j$(nproc)
-        
         mkdir -p ~/.android
         keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
-        
         make apk
 
-    - name: 📦 APK umbenennen
+    - name: APK umbenennen und hochladen
       run: |
         APK_FILE=$(find . -name "*.apk" -type f | head -1)
         mv "$APK_FILE" "${{ env.FINAL_APK_NAME }}"
+        echo "FINAL_APK=${{ env.FINAL_APK_NAME }}" >> $GITHUB_ENV
 
-    - name: 📤 Upload APK
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.FINAL_APK_NAME }}
