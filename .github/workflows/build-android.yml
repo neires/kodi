@@ -72,35 +72,31 @@ jobs:
         sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
         echo "ANDROID_NDK=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
 
-    - name: Cache Kodi Dependencies
-      uses: actions/cache@v4
+    # 1. CACHE SUCHEN UND LADEN
+    - name: Restore Kodi Dependencies
+      id: cache-deps
+      uses: actions/cache/restore@v4
       with:
         path: |
           ${{ github.workspace }}/xbmc-depends
           ${{ github.workspace }}/tools/depends
           ${{ github.workspace }}/.tarballs
-        key: ${{ runner.os }}-kodi-depends-v8-${{ hashFiles('tools/depends/Makefile') }}
-        save-always: true
+        key: ${{ runner.os }}-kodi-depends-v9-${{ hashFiles('tools/depends/Makefile') }}
 
+    # 2. ABHÄNGIGKEITEN BAUEN (Wird komplett übersprungen, wenn Cache existiert!)
     - name: Build dependencies (Zwei-Phasen-Build)
+      if: steps.cache-deps.outputs.cache-hit != 'true'
       run: |
-        # RADIKALER CHECK: Wenn der Basis-Ordner existiert, ist der Cache da!
-        if [ -d "${{ github.workspace }}/xbmc-depends" ]; then
-          echo "✅ CACHE GEFUNDEN! Ich mache hier absolut gar nichts."
-          ls -R ${{ github.workspace }}/xbmc-depends | head -n 20 # Nur zur Sicherheit für das Log
-          exit 0
-        fi
-
         cd tools/depends
         ./bootstrap
         
-        # PHASE 1
+        # PHASE 1: Native Tools für Ubuntu
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --with-rendersystem=gl
         make -C native -j$(nproc)
         
-        # PHASE 2
+        # PHASE 2: Target-Abhängigkeiten für Android
         ./configure --prefix=${{ github.workspace }}/xbmc-depends \
                     --with-tarballs=${{ github.workspace }}/.tarballs \
                     --host=${{ env.KODI_TARGET_ARCH }} \
@@ -108,6 +104,17 @@ jobs:
                     --with-ndk-path=$ANDROID_NDK \
                     --with-rendersystem=gles
         make -j$(nproc)
+
+    # 3. CACHE SOFORT SPEICHERN (Direkt nach dem Build!)
+    - name: Save Kodi Dependencies
+      if: steps.cache-deps.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ github.workspace }}/xbmc-depends
+          ${{ github.workspace }}/tools/depends
+          ${{ github.workspace }}/.tarballs
+        key: ${{ steps.cache-deps.outputs.cache-primary-key }}
 
     - name: Paketnamen hartcodieren
       run: |
@@ -119,10 +126,7 @@ jobs:
         make -C tools/depends/target/cmakebuildsys
         cd build
         export GRADLE_OPTS="-Xmx2048m"
-        
-        # DIE BRECHSTANGE IST ZURÜCK: Zwingt Kodi, den genauen Fehler zu zeigen
-        make -j1 VERBOSE=1
-        
+        make -j$(nproc)
         mkdir -p ~/.android
         keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
         make apk
