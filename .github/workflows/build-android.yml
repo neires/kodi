@@ -67,7 +67,14 @@ jobs:
         path: ${{ github.workspace }}/xbmc-depends
         key: ${{ runner.os }}-kodi-depends-${{ hashFiles('tools/depends/Makefile') }}
 
-    - name: Build Native Tools (Host)
+    - name: Build Native Tools (Host) - ISOLIERT
+      env:
+        TARGET_ARCH: ""
+        CFLAGS: ""
+        CXXFLAGS: ""
+        LDFLAGS: ""
+        CC: gcc
+        CXX: g++
       run: |
         cd tools/depends
         ./bootstrap
@@ -108,7 +115,6 @@ jobs:
       run: |
         APK_FILE=$(find . -name "*.apk" -type f | head -1)
         mv "$APK_FILE" "${{ env.FINAL_APK_NAME }}"
-        echo "FINAL_APK=${{ env.FINAL_APK_NAME }}" >> $GITHUB_ENV
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
