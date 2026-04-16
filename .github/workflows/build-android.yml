@@ -74,6 +74,7 @@ jobs:
       with:
         path: ${{ github.workspace }}/xbmc-depends
         key: ${{ runner.os }}-kodi-depends-v7-${{ hashFiles('tools/depends/Makefile') }}
+        save-always: true  # <--- DIESE ZEILE IST DER LEBENSRETTER
 
     - name: Build dependencies (Zwei-Phasen-Build)
       run: |
