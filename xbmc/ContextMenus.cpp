@@ -83,6 +83,7 @@ std::string CAddRemoveFavourite::GetLabel(const CFileItem& item) const
 
 bool CAddRemoveFavourite::IsVisible(const CFileItem& item) const
 {
+  return false; // Deaktiviert sowohl "Hinzufügen" als auch "Entfernen"
   if (item.GetProperty("hide_add_remove_favourite").asBoolean())
     return false;
 
