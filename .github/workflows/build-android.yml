@@ -23,7 +23,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: recursive
-        ref: Kodi22_neires
+        ref: 22-android
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
