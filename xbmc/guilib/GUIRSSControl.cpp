@@ -96,6 +96,7 @@ bool CGUIRSSControl::UpdateColors(const CGUIListItem* item)
 
 void CGUIRSSControl::Process(unsigned int currentTime, CDirtyRegionList &dirtyregions)
 {
+  return; // <-- Deaktiviert die gesamte RSS-Darstellung
   bool dirty = false;
   if (CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(CSettings::SETTING_LOOKANDFEEL_ENABLERSSFEEDS) && CRssManager::GetInstance().IsActive())
   {
