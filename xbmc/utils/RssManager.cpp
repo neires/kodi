@@ -77,7 +77,8 @@ void CRssManager::OnSettingAction(const std::shared_ptr<const CSetting>& setting
 
 void CRssManager::Start()
  {
-   m_bActive = true;
+   return; // <-- Verhindert das Starten des RSS-Managers komplett
+   // m_bActive = true;
 }
 
 void CRssManager::Stop()
