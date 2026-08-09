@@ -274,7 +274,7 @@ bool CDVDDemuxFFmpeg::Open(const std::shared_ptr<CDVDInputStream>& pInput, bool 
   m_pFormatContext->interrupt_callback = int_cb;
 
   // try to abort after 30 seconds
-  m_timeout.Set(30s);
+  m_timeout.Set(60s);
 
   CURL url = m_pInput->GetURL();
   if (m_pInput->IsStreamType(DVDSTREAM_TYPE_FFMPEG))
