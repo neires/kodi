@@ -23,7 +23,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: recursive
-        ref: 22-android
+        ref: neires-timeout-DemuxFFmpeg
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
